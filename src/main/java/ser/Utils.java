@@ -48,6 +48,42 @@ public class Utils {
     getSystemConfig(ISession ses) throws Exception {
         return getSystemConfig(ses, null);
     }
+    static IProcessInstance updateProcessInstance(IProcessInstance prin) throws Exception {
+        String prInId = prin.getID();
+        prin.commit();
+        Thread.sleep(2000);
+        if(prInId.equals("<new>")) {
+            return prin;
+        }
+        return (IProcessInstance) prin.getSession().getDocumentServer().getInformationObjectByID(prInId, prin.getSession());
+    }
+    static IInformationObject getProjectWorkspace(String prjn, ProcessHelper helper) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("TYPE = '").append(Conf.ClassIDs.ProjectWorkspace).append("'")
+                .append(" AND ")
+                .append(Conf.DescriptorLiterals.PrjCardCode).append(" = '").append(prjn).append("'");
+        String whereClause = builder.toString();
+        System.out.println("Where Clause: " + whereClause);
+
+        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.ProjectWorkspace} , whereClause , 1);
+        if(informationObjects.length < 1) {return null;}
+        return informationObjects[0];
+    }
+    public static boolean hasDescriptor(IInformationObject infObj, String dscn) throws Exception {
+        IValueDescriptor[] vds = infObj.getDescriptorList();
+        for(IValueDescriptor vd : vds){
+            if(vd.getName().equals(dscn)){return true;}
+        }
+        return false;
+    }
+    static String projectNr(IInformationObject projectInfObj) throws Exception {
+        String rtrn = "";
+        if(Utils.hasDescriptor(projectInfObj, Conf.Descriptors.ProjectNo)){
+            rtrn = projectInfObj.getDescriptorValue(Conf.Descriptors.ProjectNo, String.class);
+            rtrn = (rtrn == null ? "" : rtrn).trim();
+        }
+        return rtrn;
+    }
     static JSONObject
     getSystemConfig(ISession ses, IStringMatrix mtrx) throws Exception {
         if(mtrx == null){
