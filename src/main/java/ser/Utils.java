@@ -1,16 +1,9 @@
 package ser;
 
 import com.ser.blueline.*;
-import com.ser.blueline.bpm.IBpmService;
 import com.ser.blueline.bpm.IProcessInstance;
-import com.ser.blueline.bpm.ITask;
-import com.ser.blueline.bpm.IWorkbasket;
-import com.ser.blueline.metaDataComponents.IArchiveClass;
 import com.ser.blueline.metaDataComponents.IStringMatrix;
-import com.ser.foldermanager.IFolder;
-import com.ser.foldermanager.INode;
 
-import com.spire.xls.FileFormat;
 import com.spire.xls.Workbook;
 import com.spire.xls.Worksheet;
 import com.spire.xls.core.spreadsheet.HTMLOptions;
@@ -24,11 +17,8 @@ import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.json.JSONObject;
 
@@ -40,12 +30,130 @@ import java.util.List;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 public class Utils {
-    static JSONObject
-    getSystemConfig(ISession ses) throws Exception {
+    static void updateDocReleased(String dcod, String rcod, ProcessHelper helper) throws Exception {
+        StringBuilder builder = new StringBuilder();
+        builder.append("TYPE = '").append(Conf.ClassIDs.EngineeringDocument).append("'")
+                .append(" AND ")
+                .append(Conf.DescriptorLiterals.DocNumber).append(" = '").append(dcod).append("'")
+                .append(" AND ")
+                .append(Conf.DescriptorLiterals.DocRevision).append(" = '").append(rcod).append("'");
+        String whereClause = builder.toString();
+        System.out.println("Where Clause: " + whereClause);
+
+        IInformationObject[] infoObjs = helper.createQuery(new String[]{Conf.Databases.EngineeringDocument} , whereClause , 1);
+        for(IInformationObject info : infoObjs){
+            if(!hasDescriptor(info, Conf.Descriptors.Released)){continue;}
+            info.setDescriptorValue(Conf.Descriptors.Released, "0");
+            info = updateInfoObj(info);
+        }
+    }
+    static IInformationObject getContractor(String scod, ProcessHelper helper)  {
+        StringBuilder builder = new StringBuilder();
+        builder.append("TYPE = '").append(Conf.ClassIDs.Supplier).append("'")
+                .append(" AND ")
+                .append(Conf.DescriptorLiterals.ObjectNumber).append(" = '").append(scod).append("'");
+        String whereClause = builder.toString();
+        System.out.println("Where Clause: " + whereClause);
+
+        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.SupplierContact} , whereClause , 1);
+        if(informationObjects.length < 1) {return null;}
+        return informationObjects[0];
+    }
+    static IInformationObject getContact(String mail, ProcessHelper helper)  {
+        StringBuilder builder = new StringBuilder();
+        builder.append("TYPE = '").append(Conf.ClassIDs.Contact).append("'")
+                .append(" AND ")
+                .append(Conf.DescriptorLiterals.PrimaryEMail).append(" = '").append(mail).append("'");
+        String whereClause = builder.toString();
+        System.out.println("Where Clause: " + whereClause);
+
+        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.SupplierContact} , whereClause , 1);
+        if(informationObjects.length < 1) {return null;}
+        return informationObjects[0];
+    }
+    static void verifyProcessSubDocuments(IInformationObjectLinks links, String prjNo) throws Exception{
+
+        List<String> docIds = new ArrayList<>();
+        JSONObject rmvs = new JSONObject();
+
+        for (ILink link : links.getLinks()) {
+            IDocument xdoc = (IDocument) link.getTargetInformationObject();
+            if (!xdoc.getClassID().equals(Conf.ClassIDs.EngineeringDocument)){continue;}
+            String xdId = xdoc.getID();
+            if (docIds.contains(xdId)){continue;}
+
+            String dpjn = xdoc.getDescriptorValue(Conf.Descriptors.ProjectNo, String.class);
+            dpjn = (dpjn == null ? "" : dpjn);
+
+            String dsts = xdoc.getDescriptorValue(Conf.Descriptors.DocStatus, String.class);
+            dsts = (dsts == null ? "" : dsts);
+
+            if(!Conf.CheckValues.SendDocStatuses.contains(dsts)
+            || !dpjn.equals(prjNo)){
+                if(!rmvs.has(xdId)){
+                    rmvs.put(xdId, xdoc);
+                }
+                continue;
+            }
+
+            docIds.add(xdoc.getID());
+        }
+        for(String rmId : rmvs.keySet()){
+            IDocument rdoc = (IDocument) rmvs.get(rmId);
+            System.out.println("Remove documents : " + rmId);
+            links.removeInformationObject(rmId, false);
+        }
+    }
+    static void updateProcessSubDocuments(ISession ses, ProcessHelper helper, IInformationObjectLinks links, String prjNo, String status, String notes) throws Exception{
+        List<String> docIds = new ArrayList<>();
+        for (ILink link : links.getLinks()) {
+            IDocument xdoc = (IDocument) link.getTargetInformationObject();
+            if (!xdoc.getClassID().equals(Conf.ClassIDs.EngineeringDocument)){continue;}
+            String xdId = xdoc.getID();
+            if (docIds.contains(xdId)){continue;}
+
+            String dpjn = xdoc.getDescriptorValue(Conf.Descriptors.ProjectNo, String.class);
+            dpjn = (dpjn == null ? "" : dpjn);
+
+            String dsts = xdoc.getDescriptorValue(Conf.Descriptors.DocStatus, String.class);
+            dsts = (dsts == null ? "" : dsts);
+
+            if(!Conf.CheckValues.SendDocStatuses.contains(dsts)
+            || !dpjn.equals(prjNo)){
+                continue;
+            }
+            docIds.add(xdoc.getID());
+        }
+        for(String docId : docIds){
+            IInformationObject pdoc = ses.getDocumentServer().getInformationObjectByID(docId, ses);
+            if(pdoc == null){continue;}
+            if(!hasDescriptor(pdoc, Conf.Descriptors.DocStatus)){continue;}
+            pdoc.setDescriptorValue(Conf.Descriptors.DocStatus, status);
+
+            if(hasDescriptor(pdoc, Conf.Descriptors.Notes)){
+                pdoc.setDescriptorValue(Conf.Descriptors.Notes, notes);
+            }
+
+            String docNo = "", revNo = "";
+            if(hasDescriptor(pdoc, Conf.Descriptors.DocNumber)){
+                docNo = pdoc.getDescriptorValue(Conf.Descriptors.DocNumber, String.class);
+                docNo = (docNo == null ? "" : docNo);
+            }
+            if(hasDescriptor(pdoc, Conf.Descriptors.DocRevision)){
+                revNo = pdoc.getDescriptorValue(Conf.Descriptors.DocRevision, String.class);
+                revNo = (revNo == null ? "" : revNo);
+            }
+
+            if(helper != null && !docNo.isEmpty() && !revNo.isEmpty()){
+                updateDocReleased(docNo, revNo, helper);
+                pdoc.setDescriptorValue(Conf.Descriptors.Released, "1");
+            }
+            updateInfoObj(pdoc);
+        }
+    }
+    static JSONObject getSystemConfig(ISession ses) throws Exception {
         return getSystemConfig(ses, null);
     }
     static IProcessInstance updateProcessInstance(IProcessInstance prin) throws Exception {
@@ -56,6 +164,15 @@ public class Utils {
             return prin;
         }
         return (IProcessInstance) prin.getSession().getDocumentServer().getInformationObjectByID(prInId, prin.getSession());
+    }
+    static IInformationObject updateInfoObj(IInformationObject info) throws Exception {
+        String prInId = info.getID();
+        info.commit();
+        Thread.sleep(2000);
+        if(prInId.equals("<new>")) {
+            return info;
+        }
+        return (IInformationObject) info.getSession().getDocumentServer().getInformationObjectByID(prInId, info.getSession());
     }
     static IInformationObject getProjectWorkspace(String prjn, ProcessHelper helper) {
         StringBuilder builder = new StringBuilder();

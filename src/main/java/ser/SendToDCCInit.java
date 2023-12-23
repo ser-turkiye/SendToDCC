@@ -7,7 +7,6 @@ import com.ser.blueline.bpm.ITask;
 import de.ser.doxis4.agentserver.UnifiedAgent;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 
 
@@ -17,6 +16,8 @@ public class SendToDCCInit extends UnifiedAgent {
     IBpmService bpm;
     IProcessInstance processInstance;
     IInformationObject projectInfObj;
+    IUser user;
+    IUser owner;
     IInformationObjectLinks sendToDCCLinks;
     ProcessHelper helper;
     ITask task;
@@ -35,6 +36,7 @@ public class SendToDCCInit extends UnifiedAgent {
         session = getSes();
         bpm = getBpm();
         server = session.getDocumentServer();
+        user = session.getUser();
         task = getEventTask();
 
         try {
@@ -42,41 +44,69 @@ public class SendToDCCInit extends UnifiedAgent {
             helper = new ProcessHelper(session);
             (new File(Conf.SendToDCC.MainPath)).mkdirs();
 
-
             processInstance = task.getProcessInstance();
+            owner = processInstance.getOwner();
+
             projectNo = (processInstance != null ? Utils.projectNr((IInformationObject) processInstance) : "");
             if(projectNo.isEmpty()){
                 throw new Exception("Project no is empty.");
             }
 
+            //sender & receiver code+name set
+
             projectInfObj = Utils.getProjectWorkspace(projectNo, helper);
             if(projectInfObj == null){
                 throw new Exception("Project not found [" + projectNo + "].");
             }
+
+
+            String ownCode = "";
+            if(Utils.hasDescriptor(projectInfObj, Conf.Descriptors.ProjectOwn)){
+                ownCode = projectInfObj.getDescriptorValue(Conf.Descriptors.ProjectOwn, String.class);
+                ownCode = (ownCode == null ? "" : ownCode);
+            }
+            if(ownCode.isEmpty()){
+                throw new Exception("Project owner is empty.");
+            }
+            IInformationObject pown = Utils.getContractor(ownCode, helper);
+            if(pown == null){
+                throw new Exception("Project-owner not found [" + ownCode + "].");
+            }
+
             sendToDCCLinks = processInstance.getLoadedInformationObjectLinks();
-            documentIds = new ArrayList<>();
-            List<String> rmvIds = new ArrayList<>();
+            Utils.verifyProcessSubDocuments(sendToDCCLinks, projectNo);
 
-            for (ILink link : sendToDCCLinks.getLinks()) {
-                IDocument xdoc = (IDocument) link.getTargetInformationObject();
-                if (!xdoc.getClassID().equals(Conf.ClassIDs.EngineeringDocument)){continue;}
-                String xdId = xdoc.getID();
-                if (documentIds.contains(xdId)){continue;}
+            processInstance = Utils.updateProcessInstance(processInstance);
 
-                String dsts = xdoc.getDescriptorValue(Conf.Descriptors.DocStatus, String.class);
-                dsts = (dsts == null ? "" : dsts);
-                if(!Conf.Descriptors.DocStatuses.contains(dsts)){
-                    if(!rmvIds.contains(xdId)){
-                        rmvIds.add(xdId);
-                    }
-                    continue;
-                }
-
-                documentIds.add(xdoc.getID());
+            IInformationObject cont = Utils.getContact(owner.getLogin(), helper);
+            if(cont == null){
+                throw new Exception("Contact not found [" + owner.getLogin() + "].");
             }
-            for(String rmId : rmvIds){
-                sendToDCCLinks.removeInformationObject(rmId, false);
+            String supCode = "";
+            if(Utils.hasDescriptor(cont, Conf.Descriptors.ContractorCode)){
+                supCode = cont.getDescriptorValue(Conf.Descriptors.ContractorCode, String.class);
+                supCode = (supCode == null ? "" : supCode);
             }
+            if(supCode.isEmpty()){
+                throw new Exception("Supplier code is empty.");
+            }
+            String supName = "";
+            if(Utils.hasDescriptor(cont, Conf.Descriptors.ContractorName)){
+                supName = cont.getDescriptorValue(Conf.Descriptors.ContractorName, String.class);
+                supName = (supName == null ? "" : supName);
+            }
+
+            String ownName = "";
+            if(Utils.hasDescriptor(pown, Conf.Descriptors.ContractorName)){
+                ownName = pown.getDescriptorValue(Conf.Descriptors.ContractorName, String.class);
+                ownName = (ownName == null ? "" : ownName);
+            }
+
+            processInstance.setDescriptorValue(Conf.Descriptors.ReceiverCode, ownCode);
+            processInstance.setDescriptorValue(Conf.Descriptors.ReceiverName, ownName);
+
+            processInstance.setDescriptorValue(Conf.Descriptors.SenderCode, supCode);
+            processInstance.setDescriptorValue(Conf.Descriptors.SenderName, supName);
 
             processInstance = Utils.updateProcessInstance(processInstance);
             System.out.println("Tested.");

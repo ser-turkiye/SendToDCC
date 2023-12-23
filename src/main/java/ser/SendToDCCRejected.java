@@ -1,17 +1,19 @@
 package ser;
 
-import com.ser.blueline.*;
+import com.ser.blueline.IDocumentServer;
+import com.ser.blueline.IInformationObject;
+import com.ser.blueline.IInformationObjectLinks;
+import com.ser.blueline.ISession;
 import com.ser.blueline.bpm.IBpmService;
 import com.ser.blueline.bpm.IProcessInstance;
 import com.ser.blueline.bpm.ITask;
 import de.ser.doxis4.agentserver.UnifiedAgent;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 
 
-public class SendToDCCLoad extends UnifiedAgent {
+public class SendToDCCRejected extends UnifiedAgent {
     ISession session;
     IDocumentServer server;
     IBpmService bpm;
@@ -49,12 +51,19 @@ public class SendToDCCLoad extends UnifiedAgent {
                 throw new Exception("Project no is empty.");
             }
 
+            //sender & receiver code+name set
+
             projectInfObj = Utils.getProjectWorkspace(projectNo, helper);
             if(projectInfObj == null){
                 throw new Exception("Project not found [" + projectNo + "].");
             }
             sendToDCCLinks = processInstance.getLoadedInformationObjectLinks();
-
+            String notes = "";
+            if(Utils.hasDescriptor((IInformationObject) processInstance, Conf.Descriptors.Notes)){
+                notes = processInstance.getDescriptorValue(Conf.Descriptors.Notes, String.class);
+                notes = (notes == null ? "" : notes);
+            }
+            Utils.updateProcessSubDocuments(session, null, sendToDCCLinks, projectNo, "90", notes);
             processInstance = Utils.updateProcessInstance(processInstance);
             System.out.println("Tested.");
 

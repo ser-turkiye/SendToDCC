@@ -2,9 +2,9 @@ package junit
 
 import de.ser.doxis4.agentserver.AgentExecutionResult
 import org.junit.*
-import ser.SendToDCCLoad
+import ser.SendToDCCRejected
 
-class TEST_SendToDCCLoad {
+class TEST_SendToDCCRejected {
 
     Binding binding
 
@@ -20,7 +20,7 @@ class TEST_SendToDCCLoad {
 
     @Test
     void testForAgentResult() {
-        def agent = new SendToDCCLoad();
+        def agent = new SendToDCCRejected();
 
         binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "SP03BPM246d2b835e-6f55-4bbb-835a-40f9ee7f8d2c182023-12-04T12:25:57.492Z00"
 
