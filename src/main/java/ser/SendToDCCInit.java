@@ -76,6 +76,7 @@ public class SendToDCCInit extends UnifiedAgent {
             sendToDCCLinks = processInstance.getLoadedInformationObjectLinks();
             Utils.verifyProcessSubDocuments(sendToDCCLinks, projectNo);
 
+            Utils.updateProcessSubDocuments(session, null, sendToDCCLinks, projectNo, "40", "");
             processInstance = Utils.updateProcessInstance(processInstance);
 
             IInformationObject cont = Utils.getContact(owner.getLogin(), helper);
@@ -116,7 +117,7 @@ public class SendToDCCInit extends UnifiedAgent {
             System.out.println("Exception       : " + e.getMessage());
             System.out.println("    Class       : " + e.getClass());
             System.out.println("    Stack-Trace : " + e.getStackTrace() );
-            return resultRestart("Exception : " + e.getMessage(), 10);
+            return resultError("Exception : " + e.getMessage());
 
         }
 

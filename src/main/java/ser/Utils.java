@@ -1,7 +1,10 @@
 package ser;
 
 import com.ser.blueline.*;
+import com.ser.blueline.bpm.IBpmService;
 import com.ser.blueline.bpm.IProcessInstance;
+import com.ser.blueline.bpm.ITask;
+import com.ser.blueline.bpm.IWorkbasket;
 import com.ser.blueline.metaDataComponents.IStringMatrix;
 
 import com.spire.xls.Workbook;
@@ -17,9 +20,12 @@ import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.*;
@@ -28,26 +34,362 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Utils {
-    static void updateDocReleased(String dcod, String rcod, ProcessHelper helper) throws Exception {
-        StringBuilder builder = new StringBuilder();
-        builder.append("TYPE = '").append(Conf.ClassIDs.EngineeringDocument).append("'")
-                .append(" AND ")
-                .append(Conf.DescriptorLiterals.DocNumber).append(" = '").append(dcod).append("'")
-                .append(" AND ")
-                .append(Conf.DescriptorLiterals.DocRevision).append(" = '").append(rcod).append("'");
-        String whereClause = builder.toString();
-        System.out.println("Where Clause: " + whereClause);
 
-        IInformationObject[] infoObjs = helper.createQuery(new String[]{Conf.Databases.EngineeringDocument} , whereClause , 1);
-        for(IInformationObject info : infoObjs){
-            if(!hasDescriptor(info, Conf.Descriptors.Released)){continue;}
-            info.setDescriptorValue(Conf.Descriptors.Released, "0");
-            info = updateInfoObj(info);
+    public static void loadExcel(String tpth, String name, JSONObject pbks) throws IOException {
+
+        FileInputStream tist = new FileInputStream(tpth);
+        XSSFWorkbook twrb = new XSSFWorkbook(tist);
+
+        Sheet tsht = twrb.getSheet(name);
+        for (Row trow : tsht){
+            for(Cell tcll : trow){
+                if(tcll.getCellType() != CellType.STRING){continue;}
+                String clvl = tcll.getRichStringCellValue().getString();
+                String clvv = updateCell(clvl, pbks);
+                if(!clvv.equals(clvl)){
+                    tcll.setCellValue(clvv);
+                }
+
+                if(clvv.indexOf("[[") != (-1) && clvv.indexOf("]]") != (-1)
+                        && clvv.indexOf("[[") < clvv.indexOf("]]")){
+                    String znam = clvv.substring(clvv.indexOf("[[") + "[[".length(), clvv.indexOf("]]"));
+                    if(pbks.has(znam)){
+                        String zval = znam;
+                        if(pbks.has(znam + ".Text")){
+                            zval = pbks.getString(znam + ".Text");
+                        }
+                        tcll.setCellValue(zval);
+                        String lurl = pbks.getString(znam);
+                        if(!lurl.isEmpty()) {
+                            Hyperlink link = twrb.getCreationHelper().createHyperlink(HyperlinkType.URL);
+                            link.setAddress(lurl);
+                            tcll.setHyperlink(link);
+                        }
+                    }
+                }
+            }
         }
+        FileOutputStream tost = new FileOutputStream(tpth);
+        twrb.write(tost);
+        tost.close();
+    }
+    static void sendResultMail(IBpmService bpm,
+                               ISession session, IDocumentServer server,
+                               ITask task, IInformationObject project, String prjn, String akey, String nots,
+                               JSONObject mailConfig,
+                               IInformationObjectLinks links,
+                               ProcessHelper helper) throws Exception {
+
+        IUser ownr = task.getCreator();
+        String tMail = ownr.getEMailAddress();
+        tMail = (tMail == null ? "" : tMail);
+        if(tMail.isEmpty()){return;}
+
+        IDocument ptpl = getMailTplDocument(prjn, helper);
+        if(ptpl == null){return;}
+
+        System.out.println("  ---> " + ptpl.getDisplayName());
+        JSONObject ecfg = getExcelConfig(ptpl, prjn);
+        if(ecfg == null){return;}
+
+        String uniqueId = UUID.randomUUID().toString();
+        String mailExcelPath = Utils.exportDocument(ptpl, Conf.SendToDCC.MainPath, "[" + prjn + "]@" + akey + "@[" + uniqueId + "]");
+
+        Double dcix = (ecfg.has("Document.Lines.ColumnIndex") ? ecfg.getDouble("Document.Lines.ColumnIndex") : 0.0d);
+        loadTableRows(mailExcelPath, ecfg.getString("SheetName"), "Document",
+                (dcix == null ? 0 : (int) Math.round(dcix)), links.getLinks().size());
+
+        String[] cc = getPrjMails(bpm, project, ecfg, akey + ".Mail-CC");
+
+        JSONObject mbms = new JSONObject();
+
+        mbms.put("DoxisLink", mailConfig.getString("webBase") + helper.getTaskURL(task.getID()));
+
+        mbms.put("Count", links.getLinks().size() + "");
+        mbms.put("Result", akey);
+        mbms.put("Notes", nots);
+
+        int dcnt = 0;
+        for (ILink link : links.getLinks()) {
+            IDocument xdoc = (IDocument) link.getTargetInformationObject();
+            if (!xdoc.getClassID().equals(Conf.ClassIDs.EngineeringDocument)){continue;}
+
+
+            String docNo = "", revNo = "", docName = "";
+            if(hasDescriptor(xdoc, Conf.Descriptors.DocNumber)){
+                docNo = xdoc.getDescriptorValue(Conf.Descriptors.DocNumber, String.class);
+                docNo = (docNo == null ? "" : docNo);
+            }
+            if(hasDescriptor(xdoc, Conf.Descriptors.DocRevision)){
+                revNo = xdoc.getDescriptorValue(Conf.Descriptors.DocRevision, String.class);
+                revNo = (revNo == null ? "" : revNo);
+            }
+            if(hasDescriptor(xdoc, Conf.Descriptors.DocName)){
+                docName = xdoc.getDescriptorValue(Conf.Descriptors.DocName, String.class);
+                docName = (docName == null ? "" : docName);
+            }
+
+            dcnt++;
+            mbms.put("DocNo" + dcnt, docNo);
+            mbms.put("RevNo" + dcnt, revNo);
+            mbms.put("DocumentName" + dcnt, docName);
+        }
+        loadExcel(mailExcelPath, ecfg.getString("SheetName"), mbms);
+
+        String mailHtmlPath = convertExcelToHtml(mailExcelPath,
+                Conf.SendToDCC.MainPath + "/[" + prjn + "]@" + akey + "@[" + uniqueId + "]" + ".html", "");
+        JSONObject mail = new JSONObject();
+
+        mail.put("To", tMail);
+        mail.put("Cc", String.join(";", cc));
+        mail.put("Subject",
+                "Send To DCC Result {ProjectNo} / {Result}"
+                        .replace("{ProjectNo}", prjn)
+                        .replace("{Result}", akey)
+        );
+        mail.put("BodyHTMLFile", mailHtmlPath);
+
+        try {
+            Utils.sendHTMLMail(session, server, mailConfig, mail);
+        } catch (Exception ex){
+            System.out.println("EXCP [Send-Mail] : " + ex.getMessage());
+        }
+    }
+    private static IDocument getMailTplDocument(String prjn, ProcessHelper helper){
+        IDocument dtpl = Utils.getTemplateDocument(prjn, Conf.SendToDCC.MailTemplate, helper);
+        return dtpl;
+    }
+
+    private static Row copyRow(org.apache.poi.ss.usermodel.Workbook workbook, Sheet worksheet, int sourceRowNum, int destinationRowNum) {
+
+        Row newRow = worksheet.getRow(destinationRowNum);
+        Row sourceRow = worksheet.getRow(sourceRowNum);
+
+        if (newRow != null) {
+            worksheet.shiftRows(destinationRowNum, worksheet.getLastRowNum(), 1);
+        } else {
+            newRow = worksheet.createRow(destinationRowNum);
+        }
+
+        for (int i = 0; i < sourceRow.getLastCellNum(); i++) {
+
+            Cell oldCell = sourceRow.getCell(i);
+            Cell newCell = newRow.createCell(i);
+
+            if (oldCell == null) {
+                continue;
+            }
+
+
+            CellStyle newCellStyle = workbook.createCellStyle();
+            newCellStyle.cloneStyleFrom(oldCell.getCellStyle());
+            newCell.setCellStyle(newCellStyle);
+
+
+            if (oldCell.getCellComment() != null) {
+                newCell.setCellComment(oldCell.getCellComment());
+            }
+
+
+            if (oldCell.getHyperlink() != null) {
+                newCell.setHyperlink(oldCell.getHyperlink());
+            }
+
+
+            newCell.setCellType(oldCell.getCellType());
+
+
+            switch (oldCell.getCellType()) {
+                case BLANK:// Cell.CELL_TYPE_BLANK:
+                    newCell.setCellValue(oldCell.getStringCellValue());
+                    break;
+                case BOOLEAN:
+                    newCell.setCellValue(oldCell.getBooleanCellValue());
+                    break;
+                case FORMULA:
+                    newCell.setCellFormula(oldCell.getCellFormula());
+                    break;
+                case NUMERIC:
+                    newCell.setCellValue(oldCell.getNumericCellValue());
+                    break;
+                case STRING:
+                    newCell.setCellValue(oldCell.getRichStringCellValue());
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        for (int i = 0; i < worksheet.getNumMergedRegions(); i++) {
+            CellRangeAddress cellRangeAddress = worksheet.getMergedRegion(i);
+            if (cellRangeAddress.getFirstRow() == sourceRow.getRowNum()) {
+                CellRangeAddress newCellRangeAddress = new CellRangeAddress(newRow.getRowNum(),
+                        (newRow.getRowNum() + (cellRangeAddress.getLastRow() - cellRangeAddress.getFirstRow())),
+                        cellRangeAddress.getFirstColumn(), cellRangeAddress.getLastColumn());
+                worksheet.addMergedRegion(newCellRangeAddress);
+            }
+        }
+
+        return newRow;
+    }
+    public static Row getMasterRow(Sheet sheet, String prfx, Integer colIx)  {
+        for (Row row : sheet) {
+            Cell cll1 = row.getCell(colIx);
+            if(cll1 == null){continue;}
+
+            String cval = cll1.getRichStringCellValue().getString();
+            if(cval.isEmpty()){continue;}
+
+            if(!cval.equals("[*" + prfx + "*]") ){continue;}
+            return row;
+
+        }
+        return null;
+    }
+    public static void loadTableRows(String spth, String shtName, String prfx, Integer colIx, Integer scpy) throws IOException {
+
+        FileInputStream tist = new FileInputStream(spth);
+        XSSFWorkbook twrb = new XSSFWorkbook(tist);
+
+        Sheet tsht = twrb.getSheet(shtName);
+        Row mrow = getMasterRow(tsht, prfx, colIx);
+        if(mrow == null){return ;}
+
+        mrow.getCell(colIx).setBlank();
+
+        for(var i=1;i<=scpy;i++){
+            Row nrow = copyRow(twrb, tsht, mrow.getRowNum(), mrow.getRowNum() + i);
+
+            for(Cell ncll : nrow) {
+                if (ncll.getCellType() != CellType.STRING) {
+                    continue;
+                }
+                if(ncll.getColumnIndex() == colIx){
+                    ncll.setBlank();
+                    continue;
+                }
+
+                String clvl = ncll.getRichStringCellValue().getString();
+                String clvv = clvl.replace("*", i+"");
+                if(!clvv.equals(clvl)){
+                    ncll.setCellValue(clvv);
+                }
+            }
+        }
+
+        mrow.setZeroHeight(true);
+        tsht.setColumnHidden(colIx, true);
+
+        FileOutputStream tost = new FileOutputStream(spth);
+        twrb.write(tost);
+        tost.close();
+
+    }
+
+    private static String[] getPrjMails(IBpmService bpm, IInformationObject project, JSONObject ecfg, String znam){
+        List<String> rtrn = new ArrayList<>();
+        List<String> list = new ArrayList<>();
+        List<Object> cvls = (ecfg.has(znam) ? (JSONArray) ecfg.get(znam) : new JSONArray()).toList();
+        for(Object cval : cvls){
+            String sval = (String) cval;
+            if(sval.isEmpty()){continue;}
+
+            if(sval.equals("Project Mngr.")){
+                String pmng = project.getDescriptorValue(Conf.Descriptors.ProjectMngr, String.class);
+                if(pmng != null && !pmng.isEmpty() && !list.contains(pmng)){
+                    list.add(pmng);
+                }
+            }
+            if(sval.equals("Engineering Manager")){
+                String emng = project.getDescriptorValue(Conf.Descriptors.EngMngr, String.class);
+                if(emng != null && !emng.isEmpty() && !list.contains(emng)){
+                    list.add(emng);
+                }
+            }
+            if(sval.equals("DCC List")){
+                List<String> dlst = project.getDescriptorValues(Conf.Descriptors.DCCList, String.class);
+                for(String dccu : dlst){
+                    if(dccu != null && !dccu.isEmpty() && !list.contains(dccu)){
+                        list.add(dccu);
+                    }
+                }
+            }
+        }
+
+        for(String line : list){
+            IWorkbasket lwbk = bpm.getWorkbasket(line);
+            if(lwbk == null){continue;}
+
+            String wbMail = lwbk.getNotifyEMail();
+            if(wbMail == null || wbMail.isEmpty()){continue;}
+
+            if(rtrn.contains(wbMail)){continue;}
+            rtrn.add(wbMail);
+        }
+
+        return rtrn.toArray(new String[rtrn.size()]);
+    }
+    private static JSONObject getExcelConfig(IDocument template, String prjn) throws Exception {
+        String excelPath = FileEvents.fileExport(template, Conf.SendToDCC.MainPath, "[" + prjn + "]");
+        JSONObject ecfg = (FilenameUtils.getExtension(excelPath).toString().toUpperCase().equals("XLSX") ?
+                Utils.getXlsxConfig(excelPath) : new JSONObject());
+        if(!ecfg.has("SheetName")){
+            return null;
+        }
+        return ecfg;
+    }
+    public static JSONObject getXlsxConfig(String excelPath) throws Exception {
+        JSONObject rtrn = new JSONObject();
+
+        FileInputStream fist = new FileInputStream(excelPath);
+        XSSFWorkbook fwrb = new XSSFWorkbook(fist);
+        Sheet sheet = fwrb.getSheet("#CONFIG");
+        if(sheet == null){throw new Exception("#CONFIG sheet not found. (" + excelPath + ")");}
+
+        for(Row row : sheet) {
+            Cell cll1 = row.getCell(0);
+            if(cll1 == null){continue;}
+
+            Cell cll3 = row.getCell(2);
+            if(cll3 == null){continue;}
+
+            if(cll1.getCellType() != CellType.STRING){continue;}
+            String cnam = cll1.getStringCellValue().trim();
+            if(cnam.isEmpty()){continue;}
+
+            String ctyp = "String";
+            Cell cll2 = row.getCell(1);
+            if(cll2 != null) {
+                CellType ttyp = cll2.getCellType();
+                if (ttyp == CellType.STRING) {
+                    ctyp = cll2.getStringCellValue().trim();
+                }
+            }
+
+            CellType tval = cll3.getCellType();
+            if(tval == CellType.STRING && ctyp.equals("String")) {
+                String cvalString = cll3.getStringCellValue().trim();
+                rtrn.put(cnam, cvalString);
+            }
+            if(tval == CellType.NUMERIC && ctyp.equals("Numeric")) {
+                Double cvalNumeric = cll3.getNumericCellValue();
+                rtrn.put(cnam, cvalNumeric);
+            }
+            if(tval == CellType.STRING && ctyp.equals("List")) {
+                String cvalString = cll3.getStringCellValue().trim();
+                List<Object> cvls = (rtrn.has(cnam) ? (JSONArray) rtrn.get(cnam) : new JSONArray()).toList();
+                if(cvalString != null && !cvalString.isEmpty() && !cvls.contains(cvalString)) {
+                    cvls.add(cvalString);
+                    rtrn.put(cnam, cvls);
+                }
+            }
+        }
+        return rtrn;
     }
     static IInformationObject getContractor(String scod, ProcessHelper helper)  {
         StringBuilder builder = new StringBuilder();
@@ -132,7 +474,7 @@ public class Utils {
             if(!hasDescriptor(pdoc, Conf.Descriptors.DocStatus)){continue;}
             pdoc.setDescriptorValue(Conf.Descriptors.DocStatus, status);
 
-            if(hasDescriptor(pdoc, Conf.Descriptors.Notes)){
+            if(hasDescriptor(pdoc, Conf.Descriptors.Notes) && !notes.isEmpty()){
                 pdoc.setDescriptorValue(Conf.Descriptors.Notes, notes);
             }
 
@@ -147,7 +489,7 @@ public class Utils {
             }
 
             if(helper != null && !docNo.isEmpty() && !revNo.isEmpty()){
-                updateDocReleased(docNo, revNo, helper);
+                //updateDocReleased(docNo, revNo, helper);
                 pdoc.setDescriptorValue(Conf.Descriptors.Released, "1");
             }
             updateInfoObj(pdoc);
@@ -308,7 +650,7 @@ public class Utils {
         if(informationObjects.length < 1) {return null;}
         return (IDocument) informationObjects[0];
     }
-    static String convertExcelToHtml(String excelPath, String htmlPath)  {
+    static String convertExcelToHtml(String excelPath, String htmlPath, String s)  {
         Workbook workbook = new Workbook();
         workbook.loadFromFile(excelPath);
         Worksheet sheet = workbook.getWorksheets().get(0);
@@ -348,9 +690,8 @@ public class Utils {
         }
         return rtrn;
     }
-    static void sendHTMLMail(ISession ses, IDocumentServer srv, String mtpn, JSONObject pars) throws Exception {
-        JSONObject mcfg = Utils.getMailConfig(ses, srv, mtpn);
-
+    static void
+    sendHTMLMail(ISession ses, IDocumentServer srv, JSONObject mcfg, JSONObject pars) throws Exception {
         String host = mcfg.getString("host");
         String port = mcfg.getString("port");
         String protocol = mcfg.getString("protocol");
@@ -454,4 +795,5 @@ public class Utils {
         Transport.send(message);
 
     }
+
 }

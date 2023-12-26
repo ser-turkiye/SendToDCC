@@ -14,6 +14,7 @@ public class Conf {
     }
     public static class SendToDCC {
         public static final String MainPath = "C:/tmp2/bulk/send-to-dcc";
+        public static final String MailTemplate = "SEND_TO_DCC_RESULT_MAIL";
     }
     public static class ClassIDs{
         public static final String Template = "b9cf43d1-a4d3-482f-9806-44ae64c6139d";
@@ -27,6 +28,7 @@ public class Conf {
         public static final String DocNumber = "ccmPrjDocNumber";
         public static final String DocRevision = "ccmPrjDocRevision";
         public static final String DocStatus = "ccmPrjDocStatus";
+        public static final String DocName = "ObjectName";
         public static final String Notes = "Notes";
         public static final String ProjectOwn = "ccmPRJCard_prefix";
         public static final String ContractorCode = "ObjectNumber";
@@ -37,12 +39,16 @@ public class Conf {
         public static final String ReceiverCode = "ccmTrmtReceiverCode";
         public static final String Released = "ccmReleased";
 
+        public static final String ProjectMngr = "ccmPRJCard_prjmngr";
+        public static final String EngMngr = "ccmPRJCard_EngMng";
+        public static final String DCCList = "ccmPrjCard_DccList";
     }
     public static class CheckValues{
         public static final List<String> SendDocStatuses = new ArrayList<>(Arrays.asList(
             "",
             "10",
-            "20"
+            "20",
+            "40"
         ));
 
     }

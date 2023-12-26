@@ -8,6 +8,7 @@ import com.ser.blueline.bpm.IBpmService;
 import com.ser.blueline.bpm.IProcessInstance;
 import com.ser.blueline.bpm.ITask;
 import de.ser.doxis4.agentserver.UnifiedAgent;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.util.List;
@@ -44,6 +45,11 @@ public class SendToDCCRejected extends UnifiedAgent {
             helper = new ProcessHelper(session);
             (new File(Conf.SendToDCC.MainPath)).mkdirs();
 
+            JSONObject scfg = Utils.getSystemConfig(session);
+            if(scfg.has("LICS.SPIRE_XLS")){
+                com.spire.license.LicenseProvider.setLicenseKey(scfg.getString("LICS.SPIRE_XLS"));
+            }
+
 
             processInstance = task.getProcessInstance();
             projectNo = (processInstance != null ? Utils.projectNr((IInformationObject) processInstance) : "");
@@ -64,6 +70,9 @@ public class SendToDCCRejected extends UnifiedAgent {
                 notes = (notes == null ? "" : notes);
             }
             Utils.updateProcessSubDocuments(session, null, sendToDCCLinks, projectNo, "90", notes);
+
+            JSONObject mcfg = Utils.getMailConfig(session, server, "");
+            Utils.sendResultMail(bpm, session, server, task, projectInfObj, projectNo, "Rejected", notes, mcfg, sendToDCCLinks, helper);
             processInstance = Utils.updateProcessInstance(processInstance);
             System.out.println("Tested.");
 
