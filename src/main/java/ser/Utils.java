@@ -85,7 +85,8 @@ public class Utils {
                                IInformationObjectLinks links,
                                ProcessHelper helper) throws Exception {
 
-        IUser ownr = task.getCreator();
+        if(task.getProcessInstance() == null){return;}
+        IUser ownr = task.getProcessInstance().getCreator();
         String tMail = ownr.getEMailAddress();
         tMail = (tMail == null ? "" : tMail);
         if(tMail.isEmpty()){return;}
@@ -112,7 +113,7 @@ public class Utils {
 
         mbms.put("Count", links.getLinks().size() + "");
         mbms.put("Result", akey);
-        mbms.put("Notes", nots);
+        mbms.put("Comment", nots);
 
         int dcnt = 0;
         for (ILink link : links.getLinks()) {
@@ -146,7 +147,7 @@ public class Utils {
         JSONObject mail = new JSONObject();
 
         mail.put("To", tMail);
-        mail.put("Cc", String.join(";", cc));
+        mail.put("CC", String.join(";", cc));
         mail.put("Subject",
                 "Send To DCC Result {ProjectNo} / {Result}"
                         .replace("{ProjectNo}", prjn)
@@ -690,8 +691,7 @@ public class Utils {
         }
         return rtrn;
     }
-    static void
-    sendHTMLMail(ISession ses, IDocumentServer srv, JSONObject mcfg, JSONObject pars) throws Exception {
+    static void sendHTMLMail(ISession ses, IDocumentServer srv, JSONObject mcfg, JSONObject pars) throws Exception {
         String host = mcfg.getString("host");
         String port = mcfg.getString("port");
         String protocol = mcfg.getString("protocol");

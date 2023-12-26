@@ -22,7 +22,7 @@ class TEST_SendToDCCRejected {
     void testForAgentResult() {
         def agent = new SendToDCCRejected();
 
-        binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "SP03BPM246d2b835e-6f55-4bbb-835a-40f9ee7f8d2c182023-12-04T12:25:57.492Z00"
+        binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "ST03BPM24cc2f2d69-87b6-4e3b-8434-c740b1349f40182023-12-26T08:07:27.676Z013"
 
         def result = (AgentExecutionResult) agent.execute(binding.variables)
         assert result.resultCode == 0
