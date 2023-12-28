@@ -91,6 +91,8 @@ public class SendToDCCInit extends UnifiedAgent {
             if(supCode.isEmpty()){
                 throw new Exception("Supplier code is empty.");
             }
+
+
             String supName = "";
             if(Utils.hasDescriptor(cont, Conf.Descriptors.ContractorName)){
                 supName = cont.getDescriptorValue(Conf.Descriptors.ContractorName, String.class);

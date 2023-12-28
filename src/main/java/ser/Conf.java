@@ -22,6 +22,7 @@ public class Conf {
         public static final String ProjectWorkspace = "32e74338-d268-484d-99b0-f90187240549";
         public static final String Contact = "d7ffea9d-3419-4922-8ffa-a0310add5723";
         public static final String Supplier = "4fd133c1-4cf8-461e-bb09-a39c307feb50";
+        public static final String InvolveParty = "fad93754-b7c2-4a12-b40e-8afae3b31e3d";
     }
     public static class Descriptors{
         public static final String ProjectNo = "ccmPRJCard_code";
@@ -42,6 +43,7 @@ public class Conf {
         public static final String ProjectMngr = "ccmPRJCard_prjmngr";
         public static final String EngMngr = "ccmPRJCard_EngMng";
         public static final String DCCList = "ccmPrjCard_DccList";
+        public static final String TemplateName = "ObjectNumberExternal";
     }
     public static class CheckValues{
         public static final List<String> SendDocStatuses = new ArrayList<>(Arrays.asList(
@@ -59,5 +61,6 @@ public class Conf {
         public static final String ObjectNumber = "OBJECTNUMBER";
         public static final String DocNumber = "CCMPRJDOCNUMBER";
         public static final String DocRevision = "CCMPRJDOCREVISION";
+        public static final String ShortName = "CONTACTSHORTNAME";
     }
 }

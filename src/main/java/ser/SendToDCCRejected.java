@@ -20,6 +20,7 @@ public class SendToDCCRejected extends UnifiedAgent {
     IBpmService bpm;
     IProcessInstance processInstance;
     IInformationObject projectInfObj;
+    IInformationObject contractorInfObj;
     IInformationObjectLinks sendToDCCLinks;
     ProcessHelper helper;
     ITask task;
@@ -63,6 +64,16 @@ public class SendToDCCRejected extends UnifiedAgent {
             if(projectInfObj == null){
                 throw new Exception("Project not found [" + projectNo + "].");
             }
+
+            String ivpNo = processInstance.getDescriptorValue(Conf.Descriptors.SenderCode, String.class);
+            if(ivpNo == null || ivpNo.isEmpty()){
+                throw new Exception("Involve Party code is empty.");
+            }
+            contractorInfObj = Utils.getContractorFolder(projectNo, ivpNo, helper);
+            if(contractorInfObj == null){
+                throw new Exception("Involve Party [" + projectNo + "/" + ivpNo + "].");
+            }
+
             sendToDCCLinks = processInstance.getLoadedInformationObjectLinks();
             String notes = "";
             if(Utils.hasDescriptor((IInformationObject) processInstance, Conf.Descriptors.Notes)){
@@ -72,7 +83,7 @@ public class SendToDCCRejected extends UnifiedAgent {
             Utils.updateProcessSubDocuments(session, null, sendToDCCLinks, projectNo, "90", notes);
 
             JSONObject mcfg = Utils.getMailConfig(session, server, "");
-            Utils.sendResultMail(bpm, session, server, task, projectInfObj, projectNo, "Rejected", notes, mcfg, sendToDCCLinks, helper);
+            Utils.sendResultMail(bpm, session, server, task, projectInfObj, projectNo, contractorInfObj, ivpNo, "Rejected", notes, mcfg, sendToDCCLinks, helper);
             processInstance = Utils.updateProcessInstance(processInstance);
             System.out.println("Tested.");
 

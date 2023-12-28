@@ -7,6 +7,10 @@ import com.ser.blueline.bpm.ITask;
 import com.ser.blueline.bpm.IWorkbasket;
 import com.ser.blueline.metaDataComponents.IStringMatrix;
 
+import com.ser.foldermanager.IElement;
+import com.ser.foldermanager.IElements;
+import com.ser.foldermanager.IFolder;
+import com.ser.foldermanager.INode;
 import com.spire.xls.Workbook;
 import com.spire.xls.Worksheet;
 import com.spire.xls.core.spreadsheet.HTMLOptions;
@@ -80,7 +84,10 @@ public class Utils {
     }
     static void sendResultMail(IBpmService bpm,
                                ISession session, IDocumentServer server,
-                               ITask task, IInformationObject project, String prjn, String akey, String nots,
+                               ITask task,
+                               IInformationObject project, String prjn,
+                               IInformationObject constractor, String ivpn,
+                               String akey, String nots,
                                JSONObject mailConfig,
                                IInformationObjectLinks links,
                                ProcessHelper helper) throws Exception {
@@ -91,7 +98,10 @@ public class Utils {
         tMail = (tMail == null ? "" : tMail);
         if(tMail.isEmpty()){return;}
 
-        IDocument ptpl = getMailTplDocument(prjn, helper);
+        IDocument ptpl = null;
+        ptpl = ptpl != null ? ptpl : getMailTplDocument(project);
+        ptpl = ptpl != null ? ptpl : getMailTplDocument(constractor);
+
         if(ptpl == null){return;}
 
         System.out.println("  ---> " + ptpl.getDisplayName());
@@ -161,9 +171,8 @@ public class Utils {
             System.out.println("EXCP [Send-Mail] : " + ex.getMessage());
         }
     }
-    private static IDocument getMailTplDocument(String prjn, ProcessHelper helper){
-        IDocument dtpl = Utils.getTemplateDocument(prjn, Conf.SendToDCC.MailTemplate, helper);
-        return dtpl;
+    private static IDocument getMailTplDocument(IInformationObject prjt) throws Exception {
+        return getTemplateDocument(prjt, Conf.SendToDCC.MailTemplate);
     }
 
     private static Row copyRow(org.apache.poi.ss.usermodel.Workbook workbook, Sheet worksheet, int sourceRowNum, int destinationRowNum) {
@@ -529,6 +538,20 @@ public class Utils {
         if(informationObjects.length < 1) {return null;}
         return informationObjects[0];
     }
+    public static IInformationObject getContractorFolder(String prjCode, String compCode, ProcessHelper helper)  {
+        StringBuilder builder = new StringBuilder();
+        builder.append("TYPE = '").append(Conf.ClassIDs.InvolveParty).append("'")
+                .append(" AND ")
+                .append(Conf.DescriptorLiterals.PrjCardCode).append(" = '").append(prjCode).append("'")
+                .append(" AND ")
+                .append(Conf.DescriptorLiterals.ShortName).append(" = '").append(compCode).append("'");
+        String whereClause = builder.toString();
+        System.out.println("Where Clause: " + whereClause);
+
+        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.ProjectWorkspace} , whereClause , 1);
+        if(informationObjects.length < 1) {return null;}
+        return informationObjects[0];
+    }
     public static boolean hasDescriptor(IInformationObject infObj, String dscn) throws Exception {
         IValueDescriptor[] vds = infObj.getDescriptorList();
         for(IValueDescriptor vd : vds){
@@ -637,7 +660,30 @@ public class Utils {
         tost.close();
         return tpltSavePath;
     }
-    static IDocument getTemplateDocument(String prjNo, String tpltName, ProcessHelper helper)  {
+
+
+    static IDocument getTemplateDocument(IInformationObject info, String tpltName) throws Exception {
+        List<INode> nods = ((IFolder) info).getNodesByName("Templates");
+        for(INode node : nods){
+            IElements elms = node.getElements();
+
+            for(int i=0;i<elms.getCount2();i++) {
+                IElement nelement = elms.getItem2(i);
+                String edocID = nelement.getLink();
+                IInformationObject tplt = info.getSession().getDocumentServer().getInformationObjectByID(edocID, info.getSession());
+                if(tplt == null){continue;}
+
+                if(!hasDescriptor(tplt, Conf.Descriptors.TemplateName)){continue;}
+
+                String etpn = tplt.getDescriptorValue(Conf.Descriptors.TemplateName, String.class);
+                if(etpn == null || !etpn.equals(tpltName)){continue;}
+
+                return (IDocument) tplt;
+            }
+        }
+        return null;
+    }
+    static IDocument getTemplateDocument_old(String prjNo, String tpltName, ProcessHelper helper)  {
         StringBuilder builder = new StringBuilder();
         builder.append("TYPE = '").append(Conf.ClassIDs.Template).append("'")
                 .append(" AND ")
