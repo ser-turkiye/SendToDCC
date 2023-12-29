@@ -22,7 +22,7 @@ class TEST_SendToDCCApproved {
     void testForAgentResult() {
         def agent = new SendToDCCApproved();
 
-        binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "ST03BPM244bb35110-cb3c-4e73-b464-ec0a50665759182023-12-25T10:00:18.569Z014"
+        binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "ST03BPM24d98cc4b2-d187-46f9-899e-f96892a618e5182023-12-29T09:55:58.992Z014"
 
         def result = (AgentExecutionResult) agent.execute(binding.variables)
         assert result.resultCode == 0

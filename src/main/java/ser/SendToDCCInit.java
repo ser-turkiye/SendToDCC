@@ -76,8 +76,10 @@ public class SendToDCCInit extends UnifiedAgent {
             sendToDCCLinks = processInstance.getLoadedInformationObjectLinks();
             Utils.verifyProcessSubDocuments(sendToDCCLinks, projectNo);
 
-            Utils.updateProcessSubDocuments(session, null, sendToDCCLinks, projectNo, "40", "");
-            processInstance = Utils.updateProcessInstance(processInstance);
+            String status = "40", draft = "0";
+
+            Utils.updateProcessSubDocuments(session, sendToDCCLinks, projectNo, draft, status, "", false);
+            processInstance.commit();
 
             IInformationObject cont = Utils.getContact(owner.getLogin(), helper);
             if(cont == null){
@@ -111,7 +113,7 @@ public class SendToDCCInit extends UnifiedAgent {
             processInstance.setDescriptorValue(Conf.Descriptors.SenderCode, supCode);
             processInstance.setDescriptorValue(Conf.Descriptors.SenderName, supName);
 
-            processInstance = Utils.updateProcessInstance(processInstance);
+            processInstance.commit();
             System.out.println("Tested.");
 
         } catch (Exception e) {

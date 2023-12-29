@@ -86,7 +86,7 @@ public class Utils {
                                ISession session, IDocumentServer server,
                                ITask task,
                                IInformationObject project, String prjn,
-                               IInformationObject constractor, String ivpn,
+                               //IInformationObject constractor, String ivpn,
                                String akey, String nots,
                                JSONObject mailConfig,
                                IInformationObjectLinks links,
@@ -100,7 +100,7 @@ public class Utils {
 
         IDocument ptpl = null;
         ptpl = ptpl != null ? ptpl : getMailTplDocument(project);
-        ptpl = ptpl != null ? ptpl : getMailTplDocument(constractor);
+        //ptpl = ptpl != null ? ptpl : getMailTplDocument(constractor);
 
         if(ptpl == null){return;}
 
@@ -442,7 +442,7 @@ public class Utils {
             String dsts = xdoc.getDescriptorValue(Conf.Descriptors.DocStatus, String.class);
             dsts = (dsts == null ? "" : dsts);
 
-            if(!Conf.CheckValues.SendDocStatuses.contains(dsts)
+            if(!Conf.CheckValues.InitDocStatuses.contains(dsts)
             || !dpjn.equals(prjNo)){
                 if(!rmvs.has(xdId)){
                     rmvs.put(xdId, xdoc);
@@ -458,13 +458,15 @@ public class Utils {
             links.removeInformationObject(rmId, false);
         }
     }
-    static void updateProcessSubDocuments(ISession ses, ProcessHelper helper, IInformationObjectLinks links, String prjNo, String status, String notes) throws Exception{
-        List<String> docIds = new ArrayList<>();
+    static void updateProcessSubDocuments(
+            ISession ses, IInformationObjectLinks links,
+            String prjNo,
+            String sstatus, String tstatus,
+            String notes, boolean rlsd) throws Exception{
         for (ILink link : links.getLinks()) {
             IDocument xdoc = (IDocument) link.getTargetInformationObject();
             if (!xdoc.getClassID().equals(Conf.ClassIDs.EngineeringDocument)){continue;}
             String xdId = xdoc.getID();
-            if (docIds.contains(xdId)){continue;}
 
             String dpjn = xdoc.getDescriptorValue(Conf.Descriptors.ProjectNo, String.class);
             dpjn = (dpjn == null ? "" : dpjn);
@@ -472,37 +474,31 @@ public class Utils {
             String dsts = xdoc.getDescriptorValue(Conf.Descriptors.DocStatus, String.class);
             dsts = (dsts == null ? "" : dsts);
 
-            if(!Conf.CheckValues.SendDocStatuses.contains(dsts)
-            || !dpjn.equals(prjNo)){
+            if(!dsts.equals(sstatus) || !dpjn.equals(prjNo)){
                 continue;
             }
-            docIds.add(xdoc.getID());
-        }
-        for(String docId : docIds){
-            IInformationObject pdoc = ses.getDocumentServer().getInformationObjectByID(docId, ses);
-            if(pdoc == null){continue;}
-            if(!hasDescriptor(pdoc, Conf.Descriptors.DocStatus)){continue;}
-            pdoc.setDescriptorValue(Conf.Descriptors.DocStatus, status);
 
-            if(hasDescriptor(pdoc, Conf.Descriptors.Notes) && !notes.isEmpty()){
-                pdoc.setDescriptorValue(Conf.Descriptors.Notes, notes);
+            if(hasDescriptor(xdoc, Conf.Descriptors.Notes) && !notes.isEmpty()){
+                xdoc.setDescriptorValue(Conf.Descriptors.Notes, notes);
             }
+
+            xdoc.setDescriptorValue(Conf.Descriptors.DocStatus, tstatus);
 
             String docNo = "", revNo = "";
-            if(hasDescriptor(pdoc, Conf.Descriptors.DocNumber)){
-                docNo = pdoc.getDescriptorValue(Conf.Descriptors.DocNumber, String.class);
+            if(hasDescriptor(xdoc, Conf.Descriptors.DocNumber)){
+                docNo = xdoc.getDescriptorValue(Conf.Descriptors.DocNumber, String.class);
                 docNo = (docNo == null ? "" : docNo);
             }
-            if(hasDescriptor(pdoc, Conf.Descriptors.DocRevision)){
-                revNo = pdoc.getDescriptorValue(Conf.Descriptors.DocRevision, String.class);
+            if(hasDescriptor(xdoc, Conf.Descriptors.DocRevision)){
+                revNo = xdoc.getDescriptorValue(Conf.Descriptors.DocRevision, String.class);
                 revNo = (revNo == null ? "" : revNo);
             }
 
-            if(helper != null && !docNo.isEmpty() && !revNo.isEmpty()){
+            if(rlsd && !docNo.isEmpty() && !revNo.isEmpty()){
                 //updateDocReleased(docNo, revNo, helper);
-                pdoc.setDescriptorValue(Conf.Descriptors.Released, "1");
+                xdoc.setDescriptorValue(Conf.Descriptors.Released, "1");
             }
-            updateInfoObj(pdoc);
+            xdoc.commit();
         }
     }
     static JSONObject getSystemConfig(ISession ses) throws Exception {

@@ -35,9 +35,9 @@ public class Conf {
         public static final String ContractorCode = "ObjectNumber";
         public static final String ContractorName = "ObjectName";
         public static final String SenderName = "ccmTrmtSender";
-        public static final String SenderCode = "ccmTrmtSenderCode";
+        public static final String SenderCode = "ccmSenderCode";
         public static final String ReceiverName = "ccmTrmtReceiver";
-        public static final String ReceiverCode = "ccmTrmtReceiverCode";
+        public static final String ReceiverCode = "ccmReceiverCode";
         public static final String Released = "ccmReleased";
 
         public static final String ProjectMngr = "ccmPRJCard_prjmngr";
@@ -46,10 +46,10 @@ public class Conf {
         public static final String TemplateName = "ObjectNumberExternal";
     }
     public static class CheckValues{
-        public static final List<String> SendDocStatuses = new ArrayList<>(Arrays.asList(
-            "",
-            "10",
-            "20",
+        public static final List<String> InitDocStatuses = new ArrayList<>(Arrays.asList(
+            "0"
+        ));
+        public static final List<String> WaitingDocStatuses = new ArrayList<>(Arrays.asList(
             "40"
         ));
 
