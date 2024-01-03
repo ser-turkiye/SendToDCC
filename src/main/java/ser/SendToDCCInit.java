@@ -76,7 +76,7 @@ public class SendToDCCInit extends UnifiedAgent {
             sendToDCCLinks = processInstance.getLoadedInformationObjectLinks();
             Utils.verifyProcessSubDocuments(sendToDCCLinks, projectNo);
 
-            String status = "40", draft = "0";
+            String status = "40", draft = "10";
 
             Utils.updateProcessSubDocuments(session, sendToDCCLinks, projectNo, draft, status, "", false);
             processInstance.commit();

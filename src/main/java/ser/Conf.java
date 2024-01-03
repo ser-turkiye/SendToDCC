@@ -14,7 +14,7 @@ public class Conf {
     }
     public static class SendToDCC {
         public static final String MainPath = "C:/tmp2/bulk/send-to-dcc";
-        public static final String MailTemplate = "SEND_TO_DCC_RESULT_MAIL";
+        public static final String MailTemplate = "SEND_TO_DCC_MAIL";
     }
     public static class ClassIDs{
         public static final String Template = "b9cf43d1-a4d3-482f-9806-44ae64c6139d";
@@ -47,10 +47,7 @@ public class Conf {
     }
     public static class CheckValues{
         public static final List<String> InitDocStatuses = new ArrayList<>(Arrays.asList(
-            "0"
-        ));
-        public static final List<String> WaitingDocStatuses = new ArrayList<>(Arrays.asList(
-            "40"
+            "10"
         ));
 
     }
