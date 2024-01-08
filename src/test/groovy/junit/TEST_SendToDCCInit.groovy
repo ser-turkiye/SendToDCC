@@ -22,7 +22,7 @@ class TEST_SendToDCCInit {
     void testForAgentResult() {
         def agent = new SendToDCCInit();
 
-        binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "SP03BPM245c3ff3f3-6d0e-4e1a-b424-b6f4f8788146182024-01-02T08:08:46.712Z00"
+        binding["AGENT_EVENT_OBJECT_CLIENT_ID"] = "SP03BPM240dd56baa-4105-4e5e-aad9-7957c4a74925182024-01-08T07:17:28.357Z00"
 
         def result = (AgentExecutionResult) agent.execute(binding.variables)
         assert result.resultCode == 0

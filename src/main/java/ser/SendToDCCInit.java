@@ -60,18 +60,13 @@ public class SendToDCCInit extends UnifiedAgent {
             }
 
 
-            String ownCode = "";
-            if(Utils.hasDescriptor(projectInfObj, Conf.Descriptors.ProjectOwn)){
-                ownCode = projectInfObj.getDescriptorValue(Conf.Descriptors.ProjectOwn, String.class);
-                ownCode = (ownCode == null ? "" : ownCode);
-            }
+            String ownCode = Utils.getMainCompGVList(session,server,projectNo);
+            String ownName = Utils.getMainCompNameGVList(session,server,projectNo);
+
             if(ownCode.isEmpty()){
                 throw new Exception("Project owner is empty.");
             }
-            IInformationObject pown = Utils.getContractor(ownCode, helper);
-            if(pown == null){
-                throw new Exception("Project-owner not found [" + ownCode + "].");
-            }
+
 
             sendToDCCLinks = processInstance.getLoadedInformationObjectLinks();
             Utils.verifyProcessSubDocuments(sendToDCCLinks, projectNo);
@@ -101,11 +96,6 @@ public class SendToDCCInit extends UnifiedAgent {
                 supName = (supName == null ? "" : supName);
             }
 
-            String ownName = "";
-            if(Utils.hasDescriptor(pown, Conf.Descriptors.ContractorName)){
-                ownName = pown.getDescriptorValue(Conf.Descriptors.ContractorName, String.class);
-                ownName = (ownName == null ? "" : ownName);
-            }
 
             processInstance.setDescriptorValue(Conf.Descriptors.ReceiverCode, ownCode);
             processInstance.setDescriptorValue(Conf.Descriptors.ReceiverName, ownName);

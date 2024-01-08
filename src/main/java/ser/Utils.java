@@ -501,9 +501,6 @@ public class Utils {
             xdoc.commit();
         }
     }
-    static JSONObject getSystemConfig(ISession ses) throws Exception {
-        return getSystemConfig(ses, null);
-    }
     static IProcessInstance updateProcessInstance(IProcessInstance prin) throws Exception {
         String prInId = prin.getID();
         prin.commit();
@@ -563,8 +560,7 @@ public class Utils {
         }
         return rtrn;
     }
-    static JSONObject
-    getSystemConfig(ISession ses, IStringMatrix mtrx) throws Exception {
+    static JSONObject getSystemConfig(ISession ses, IStringMatrix mtrx) throws Exception {
         if(mtrx == null){
             mtrx = ses.getDocumentServer().getStringMatrix("CCM_SYSTEM_CONFIG", ses);
         }
@@ -582,6 +578,10 @@ public class Utils {
         }
         return rtrn;
     }
+    static JSONObject getSystemConfig(ISession ses) throws Exception {
+        return getSystemConfig(ses, null);
+    }
+
     static String updateCell(String str, JSONObject bookmarks){
         StringBuffer rtr1 = new StringBuffer();
         String tmp = str + "";
@@ -836,6 +836,45 @@ public class Utils {
         message.setContent(multipart);
         Transport.send(message);
 
+    }
+
+
+    public static String getMainCompGVList(ISession ses, IDocumentServer srv, String pcode) {
+        String rtrn = "";
+        IStringMatrix settingsMatrix = srv.getStringMatrix("CCM_PARAM_CONTRACTOR-MEMBERS", ses);
+        String rowValueParamProjectCode = "";
+        String rowValueParamCompSName = "";
+        String rowValueParamMainComp = "";
+        for(int i = 0; i < settingsMatrix.getRowCount(); i++) {
+            rowValueParamProjectCode = settingsMatrix.getValue(i, 0);
+            rowValueParamCompSName = settingsMatrix.getValue(i, 1);
+            rowValueParamMainComp = settingsMatrix.getValue(i, 7);
+
+            if (!rowValueParamProjectCode.equals(pcode)){continue;}
+            if (!rowValueParamMainComp.equals("1")){continue;}
+
+            return rowValueParamCompSName;
+        }
+        return rtrn;
+    }
+
+    public static String getMainCompNameGVList(ISession ses, IDocumentServer srv, String pcode) {
+        String rtrn = "";
+        IStringMatrix settingsMatrix = srv.getStringMatrix("CCM_PARAM_CONTRACTOR-MEMBERS", ses);
+        String rowValueParamProjectCode = "";
+        String rowValueParamCompSName = "";
+        String rowValueParamMainComp = "";
+        for(int i = 0; i < settingsMatrix.getRowCount(); i++) {
+            rowValueParamProjectCode = settingsMatrix.getValue(i, 0);
+            rowValueParamCompSName = settingsMatrix.getValue(i, 2);
+            rowValueParamMainComp = settingsMatrix.getValue(i, 7);
+
+            if (!rowValueParamProjectCode.equals(pcode)){continue;}
+            if (!rowValueParamMainComp.equals("1")){continue;}
+
+            return rowValueParamCompSName;
+        }
+        return rtrn;
     }
 
 }
