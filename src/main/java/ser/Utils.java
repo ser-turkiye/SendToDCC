@@ -99,7 +99,7 @@ public class Utils {
         if(tMail.isEmpty()){return;}
 
         IDocument ptpl = null;
-        ptpl = ptpl != null ? ptpl : getMailTplDocument(project);
+        ptpl = ptpl != null ? ptpl : getMailTplDocument(project, session, server);
         //ptpl = ptpl != null ? ptpl : getMailTplDocument(constractor);
 
         if(ptpl == null){return;}
@@ -171,8 +171,8 @@ public class Utils {
             System.out.println("EXCP [Send-Mail] : " + ex.getMessage());
         }
     }
-    private static IDocument getMailTplDocument(IInformationObject prjt) throws Exception {
-        return getTemplateDocument(prjt, Conf.SendToDCC.MailTemplate);
+    private static IDocument getMailTplDocument(IInformationObject prjt, ISession session, IDocumentServer server) throws Exception {
+        return getTemplateDocument(prjt, Conf.SendToDCC.MailTemplate, session, server);
     }
 
     private static Row copyRow(org.apache.poi.ss.usermodel.Workbook workbook, Sheet worksheet, int sourceRowNum, int destinationRowNum) {
@@ -401,18 +401,6 @@ public class Utils {
         }
         return rtrn;
     }
-    static IInformationObject getContractor(String scod, ProcessHelper helper)  {
-        StringBuilder builder = new StringBuilder();
-        builder.append("TYPE = '").append(Conf.ClassIDs.Supplier).append("'")
-                .append(" AND ")
-                .append(Conf.DescriptorLiterals.ObjectNumber).append(" = '").append(scod).append("'");
-        String whereClause = builder.toString();
-        System.out.println("Where Clause: " + whereClause);
-
-        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.SupplierContact} , whereClause , 1);
-        if(informationObjects.length < 1) {return null;}
-        return informationObjects[0];
-    }
     static IInformationObject getContact(String mail, ProcessHelper helper)  {
         StringBuilder builder = new StringBuilder();
         builder.append("TYPE = '").append(Conf.ClassIDs.Contact).append("'")
@@ -421,7 +409,7 @@ public class Utils {
         String whereClause = builder.toString();
         System.out.println("Where Clause: " + whereClause);
 
-        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.SupplierContact} , whereClause , 1);
+        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.SupplierContact} , whereClause , "", 1, false);
         if(informationObjects.length < 1) {return null;}
         return informationObjects[0];
     }
@@ -501,24 +489,6 @@ public class Utils {
             xdoc.commit();
         }
     }
-    static IProcessInstance updateProcessInstance(IProcessInstance prin) throws Exception {
-        String prInId = prin.getID();
-        prin.commit();
-        Thread.sleep(2000);
-        if(prInId.equals("<new>")) {
-            return prin;
-        }
-        return (IProcessInstance) prin.getSession().getDocumentServer().getInformationObjectByID(prInId, prin.getSession());
-    }
-    static IInformationObject updateInfoObj(IInformationObject info) throws Exception {
-        String prInId = info.getID();
-        info.commit();
-        Thread.sleep(2000);
-        if(prInId.equals("<new>")) {
-            return info;
-        }
-        return (IInformationObject) info.getSession().getDocumentServer().getInformationObjectByID(prInId, info.getSession());
-    }
     static IInformationObject getProjectWorkspace(String prjn, ProcessHelper helper) {
         StringBuilder builder = new StringBuilder();
         builder.append("TYPE = '").append(Conf.ClassIDs.ProjectWorkspace).append("'")
@@ -527,21 +497,7 @@ public class Utils {
         String whereClause = builder.toString();
         System.out.println("Where Clause: " + whereClause);
 
-        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.ProjectWorkspace} , whereClause , 1);
-        if(informationObjects.length < 1) {return null;}
-        return informationObjects[0];
-    }
-    public static IInformationObject getContractorFolder(String prjCode, String compCode, ProcessHelper helper)  {
-        StringBuilder builder = new StringBuilder();
-        builder.append("TYPE = '").append(Conf.ClassIDs.InvolveParty).append("'")
-                .append(" AND ")
-                .append(Conf.DescriptorLiterals.PrjCardCode).append(" = '").append(prjCode).append("'")
-                .append(" AND ")
-                .append(Conf.DescriptorLiterals.ShortName).append(" = '").append(compCode).append("'");
-        String whereClause = builder.toString();
-        System.out.println("Where Clause: " + whereClause);
-
-        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.ProjectWorkspace} , whereClause , 1);
+        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.ProjectWorkspace} , whereClause , "", 1, false);
         if(informationObjects.length < 1) {return null;}
         return informationObjects[0];
     }
@@ -621,45 +577,9 @@ public class Utils {
         }
         return rtrn;
     }
-    static String saveDocReviewExcel(String templatePath, Integer shtIx, String tpltSavePath, JSONObject pbks) throws IOException {
-
-        FileInputStream tist = new FileInputStream(templatePath);
-        XSSFWorkbook twrb = new XSSFWorkbook(tist);
-
-        Sheet tsht = twrb.getSheetAt(shtIx);
-        for (Row trow : tsht){
-            for(Cell tcll : trow){
-                if(tcll.getCellType() != CellType.STRING){continue;}
-                String clvl = tcll.getRichStringCellValue().getString();
-                String clvv = updateCell(clvl, pbks);
-                if(!clvv.equals(clvl)){
-                    tcll.setCellValue(clvv);
-                }
-
-                if(clvv.indexOf("[[") != (-1) && clvv.indexOf("]]") != (-1)
-                        && clvv.indexOf("[[") < clvv.indexOf("]]")){
-                    String znam = clvv.substring(clvv.indexOf("[[") + "[[".length(), clvv.indexOf("]]"));
-                    if(pbks.has(znam)){
-                        tcll.setCellValue(znam);
-                        String lurl = pbks.getString(znam);
-                        if(!lurl.isEmpty()) {
-                            Hyperlink link = twrb.getCreationHelper().createHyperlink(HyperlinkType.URL);
-                            link.setAddress(lurl);
-                            tcll.setHyperlink(link);
-                        }
-                    }
-                }
-            }
-        }
-        FileOutputStream tost = new FileOutputStream(tpltSavePath);
-        twrb.write(tost);
-        tost.close();
-        return tpltSavePath;
-    }
-
-
-    static IDocument getTemplateDocument(IInformationObject info, String tpltName) throws Exception {
+    static IDocument getTemplateDocument(IInformationObject info, String tpltName, ISession ses, IDocumentServer srv) throws Exception {
         List<INode> nods = ((IFolder) info).getNodesByName("Templates");
+        IDocument rtrn = null;
         for(INode node : nods){
             IElements elms = node.getElements();
 
@@ -674,24 +594,15 @@ public class Utils {
                 String etpn = tplt.getDescriptorValue(Conf.Descriptors.TemplateName, String.class);
                 if(etpn == null || !etpn.equals(tpltName)){continue;}
 
-                return (IDocument) tplt;
+                rtrn = (IDocument) tplt;
+                break;
             }
+            if(rtrn != null){break;}
         }
-        return null;
-    }
-    static IDocument getTemplateDocument_old(String prjNo, String tpltName, ProcessHelper helper)  {
-        StringBuilder builder = new StringBuilder();
-        builder.append("TYPE = '").append(Conf.ClassIDs.Template).append("'")
-                .append(" AND ")
-                .append(Conf.DescriptorLiterals.PrjCardCode).append(" = '").append(prjNo).append("'")
-                .append(" AND ")
-                .append(Conf.DescriptorLiterals.ObjectNumberExternal).append(" = '").append(tpltName).append("'");
-        String whereClause = builder.toString();
-        System.out.println("Where Clause: " + whereClause);
-
-        IInformationObject[] informationObjects = helper.createQuery(new String[]{Conf.Databases.Company} , whereClause , 1);
-        if(informationObjects.length < 1) {return null;}
-        return (IDocument) informationObjects[0];
+        if(srv != null && ses != null) {
+            rtrn = srv.getDocumentCurrentVersion(ses, rtrn.getID());
+        }
+        return rtrn;
     }
     static String convertExcelToHtml(String excelPath, String htmlPath, String s)  {
         Workbook workbook = new Workbook();
@@ -702,11 +613,8 @@ public class Utils {
         sheet.saveToHtml(htmlPath, options);
         return htmlPath;
     }
-    static String getFileContent (String path) throws Exception {
-        return new String(Files.readAllBytes(Paths.get(path)));
-    }
-    static String
-    getHTMLFileContent (String path) throws Exception {
+
+    static String getHTMLFileContent (String path) throws Exception {
         String rtrn = new String(Files.readAllBytes(Paths.get(path)));
         rtrn = rtrn.replace("\uFEFF", "");
         rtrn = rtrn.replace("ï»¿", "");
