@@ -5,6 +5,8 @@ import com.ser.blueline.bpm.IBpmService;
 import com.ser.blueline.bpm.IProcessInstance;
 import com.ser.blueline.bpm.ITask;
 import de.ser.doxis4.agentserver.UnifiedAgent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -12,17 +14,13 @@ import java.util.List;
 
 
 public class SendToDCCApproved extends UnifiedAgent {
-    ISession session;
-    IDocumentServer server;
-    IBpmService bpm;
+    Logger log = LogManager.getLogger();
     IProcessInstance processInstance;
     IInformationObject projectInfObj;
     IInformationObject contractorInfObj;
     IInformationObjectLinks sendToDCCLinks;
     ProcessHelper helper;
     ITask task;
-    List<String> documentIds;
-    String transmittalNr;
     String projectNo;
     @Override
     protected Object execute() {
@@ -33,17 +31,18 @@ public class SendToDCCApproved extends UnifiedAgent {
             return resultRestart("Restarting Agent");
         }
 
-        session = getSes();
-        bpm = getBpm();
-        server = session.getDocumentServer();
+        Utils.session = getSes();
+        Utils.bpm = getBpm();
+        Utils.server = Utils.session.getDocumentServer();
+        Utils.loadDirectory(Conf.SendToDCC.MainPath);
+
         task = getEventTask();
 
         try {
 
-            helper = new ProcessHelper(session);
-            (new File(Conf.SendToDCC.MainPath)).mkdirs();
+            helper = new ProcessHelper(Utils.session);
 
-            JSONObject scfg = Utils.getSystemConfig(session);
+            JSONObject scfg = Utils.getSystemConfig();
             if(scfg.has("LICS.SPIRE_XLS")){
                 com.spire.license.LicenseProvider.setLicenseKey(scfg.getString("LICS.SPIRE_XLS"));
             }
@@ -81,26 +80,26 @@ public class SendToDCCApproved extends UnifiedAgent {
             String stsAction = "Approved";
             String status = "50", waiting = "40";
 
-            Utils.updateProcessSubDocuments(session, sendToDCCLinks, projectNo, waiting, status, notes, true);
+            Utils.updateProcessSubDocuments(sendToDCCLinks, projectNo, waiting, status, notes, true);
             processInstance.commit();
 
-            JSONObject mcfg = Utils.getMailConfig(session, server, "");
-            Utils.sendResultMail(bpm, session, server, task, projectInfObj, projectNo,
+            JSONObject mcfg = Utils.getMailConfig();
+            Utils.sendResultMail(Conf.SendToDCC.MailTemplate, task, projectInfObj, projectNo,
                     //contractorInfObj, ivpNo,
                     stsAction, notes, mcfg, sendToDCCLinks, helper);
 
-            System.out.println("Tested.");
+            log.info("Tested.");
 
         } catch (Exception e) {
             //throw new RuntimeException(e);
-            System.out.println("Exception       : " + e.getMessage());
-            System.out.println("    Class       : " + e.getClass());
-            System.out.println("    Stack-Trace : " + e.getStackTrace() );
+            log.error("Exception       : " + e.getMessage());
+            log.error("    Class       : " + e.getClass());
+            log.error("    Stack-Trace : " + e.getStackTrace() );
             return resultRestart("Exception : " + e.getMessage(), 10);
 
         }
 
-        System.out.println("Finished");
+        log.info("Finished");
         return resultSuccess("Ended successfully");
     }
 }

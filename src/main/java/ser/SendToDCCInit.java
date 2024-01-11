@@ -5,24 +5,21 @@ import com.ser.blueline.bpm.IBpmService;
 import com.ser.blueline.bpm.IProcessInstance;
 import com.ser.blueline.bpm.ITask;
 import de.ser.doxis4.agentserver.UnifiedAgent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.util.List;
 
 
 public class SendToDCCInit extends UnifiedAgent {
-    ISession session;
-    IDocumentServer server;
-    IBpmService bpm;
+    Logger log = LogManager.getLogger();
     IProcessInstance processInstance;
     IInformationObject projectInfObj;
-    IUser user;
     IUser owner;
     IInformationObjectLinks sendToDCCLinks;
     ProcessHelper helper;
     ITask task;
-    List<String> documentIds;
-    String transmittalNr;
     String projectNo;
     @Override
     protected Object execute() {
@@ -33,16 +30,16 @@ public class SendToDCCInit extends UnifiedAgent {
             return resultRestart("Restarting Agent");
         }
 
-        session = getSes();
-        bpm = getBpm();
-        server = session.getDocumentServer();
-        user = session.getUser();
+        Utils.session = getSes();
+        Utils.bpm = getBpm();
+        Utils.server = Utils.session.getDocumentServer();
+        Utils.loadDirectory(Conf.SendToDCC.MainPath);
+
         task = getEventTask();
 
         try {
 
-            helper = new ProcessHelper(session);
-            (new File(Conf.SendToDCC.MainPath)).mkdirs();
+            helper = new ProcessHelper(Utils.session);
 
             processInstance = task.getProcessInstance();
             owner = processInstance.getOwner();
@@ -60,8 +57,8 @@ public class SendToDCCInit extends UnifiedAgent {
             }
 
 
-            String ownCode = Utils.getMainCompGVList(session,server,projectNo);
-            String ownName = Utils.getMainCompNameGVList(session,server,projectNo);
+            String ownCode = Utils.getMainCompGVList(projectNo);
+            String ownName = Utils.getMainCompNameGVList(projectNo);
 
             if(ownCode.isEmpty()){
                 throw new Exception("Project owner is empty.");
@@ -73,7 +70,7 @@ public class SendToDCCInit extends UnifiedAgent {
 
             String status = "40", draft = "10";
 
-            Utils.updateProcessSubDocuments(session, sendToDCCLinks, projectNo, draft, status, "", false);
+            Utils.updateProcessSubDocuments(sendToDCCLinks, projectNo, draft, status, "", false);
             processInstance.commit();
 
             IInformationObject cont = Utils.getContact(owner.getLogin(), helper);
@@ -104,18 +101,18 @@ public class SendToDCCInit extends UnifiedAgent {
             processInstance.setDescriptorValue(Conf.Descriptors.SenderName, supName);
 
             processInstance.commit();
-            System.out.println("Tested.");
+            log.info("Tested.");
 
         } catch (Exception e) {
             //throw new RuntimeException(e);
-            System.out.println("Exception       : " + e.getMessage());
-            System.out.println("    Class       : " + e.getClass());
-            System.out.println("    Stack-Trace : " + e.getStackTrace() );
+            log.error("Exception       : " + e.getMessage());
+            log.error("    Class       : " + e.getClass());
+            log.error("    Stack-Trace : " + e.getStackTrace() );
             return resultError("Exception : " + e.getMessage());
 
         }
 
-        System.out.println("Finished");
+        log.info("Finished");
         return resultSuccess("Ended successfully");
     }
 }
